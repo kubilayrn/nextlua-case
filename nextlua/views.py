@@ -14,18 +14,69 @@ import json
 # Connect to our Redis instance
 redis_instance = redis.StrictRedis(host=settings.REDIS_HOST,port=settings.REDIS_PORT, db=1)
 
-# items = {}
-# count = 0
-# for key in redis_instance.keys("*"):
-#     items[key.decode("utf-8")] = redis_instance.get(key)
-#     count += 1
-
 # Create your views here.
-class VehicleViewSet(viewsets.ModelViewSet):
+class VehicleViewSet(viewsets.GenericViewSet):
     queryset = models.Vehicle.objects.filter(is_active=True,is_deleted=False)
     serializer_class = serializers.VehicleSerializer
 
+    def create(self,request,*args,**kwargs):
+        vehicle = models.Vehicle.objects.create(**request.data)
+        serializer = self.get_serializer(vehicle)
+        key = "vehicles_" + str(serializer.data.get('id'))
+        redis_instance.set(key,json.dumps(serializer.data))
+        return Response(serializer.data) 
+    def list (self,request,*args,**kwargs):
+        key = "vehicles_*"
+        keys = redis_instance.keys(key)
+        pks=[]
+        redis_datas=[]
+        if len(keys)>0:
+            for i in keys:
+                pk=str(i).split('_')
+                pks.append(int(pk[1].replace("'","")))
+            
+                tmp=redis_instance.get(i)
+                redis_datas.append(json.loads(tmp))
+            
+            excludes=self.queryset.exclude(pk__in=pks)
+
+            #db query results added redis_datas
+            for i in excludes:
+                redis_datas.append({"id": i.id,
+                                    "vehicle_model_id": {
+                                        "id": i.vehicle_model_id.id,
+                                        "name": i.vehicle_model_id.name,
+                                        "brand": i.vehicle_model_id.brand
+                                    },
+                                    "km": i.km,
+                                    "plate": i.plate,
+                                    "vehicle_id_number": i.vehicle_id_number,
+                                    "colour": i.colour,
+                                    "is_deleted": i.is_deleted,
+                                    "is_active": i.is_active,
+                                    "created_on": str(i.created_on),
+                                    "modified_on": str(i.modified_on)
+                })
+
+            page = self.paginate_queryset(redis_datas)
+            if page is not None:
+                serializer = self.get_serializer(page, many=True)
+                return self.get_paginated_response(serializer.data)
+
+            serializer = self.get_serializer(redis_datas, many=True)
+        else:
+            queryset = self.filter_queryset(self.get_queryset()) 
+            page = self.paginate_queryset(queryset)
+            if page is not None:
+                serializer = self.get_serializer(page, many=True)
+                return self.get_paginated_response(serializer.data)
+
+            serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+
     def retrieve(self, request, *args, **kwargs):
+        # key ile cache kontrol ediliyor.cache'de var ise cacheden yanıt dönülüyor.
+        # Yok ise db den dönen sonuç cache yazılıyor ardından response dönülüyor.
         key="vehicles_"+ kwargs['pk']
         value = redis_instance.get(key)
         if value:
@@ -79,9 +130,54 @@ class VehicleViewSet(viewsets.ModelViewSet):
 
         return Response(data='delete success')
 
-class VehicleModelViewSet(viewsets.ModelViewSet):
+class VehicleModelViewSet(viewsets.GenericViewSet):
     queryset = models.VehicleModel.objects.all()
     serializer_class = serializers.VehicleModelSerializer
+
+    def create(self,request,*args,**kwargs):
+        vehicle_model=models.VehicleModel.objects.create(**request.data)
+        serializer=self.get_serializer(vehicle_model)
+        key = "vehiclemodel_"+ str(serializer.data.get('id'))
+        redis_instance.set(key,json.dumps(serializer.data))
+        return Response(serializer.data) 
+    def list (self,request,*args,**kwargs):
+        key = "vehiclemodel_*"
+        keys = redis_instance.keys(key)
+        pks=[]
+        redis_datas=[]
+        if len(keys) > 0:
+            for i in keys:
+                pk=str(i).split('_')
+                pks.append(int(pk[1].replace("'","")))
+            
+                tmp=redis_instance.get(i)
+                redis_datas.append(json.loads(tmp))
+            
+            excludes=self.queryset.exclude(pk__in=pks)
+
+            #db query results added redis_datas
+            for i in excludes:
+                redis_datas.append({"id":i.id,"name":i.name,"brand":i.brand})
+
+            # serializer = self.serializer_class(data=list(redis_datas),many=True)
+            # serializer.is_valid(raise_exception=True)
+            page = self.paginate_queryset(redis_datas)
+            if page is not None:
+                serializer = self.get_serializer(page, many=True)
+                return self.get_paginated_response(serializer.data)
+
+            serializer = self.get_serializer(redis_datas, many=True)
+        else:
+            # serializer=self.serializer_class(data=list(self.queryset.values()),many=True)
+            # serializer.is_valid(raise_exception=True) 
+            queryset = self.filter_queryset(self.get_queryset()) 
+            page = self.paginate_queryset(queryset)
+            if page is not None:
+                serializer = self.get_serializer(page, many=True)
+                return self.get_paginated_response(serializer.data)
+
+            serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
 
     def retrieve(self, request, *args, **kwargs):
         key="vehiclemodel_"+ kwargs['pk']
