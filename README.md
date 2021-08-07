@@ -1,3 +1,4 @@
+
 VEHICLES
 ====================================
 GET
@@ -84,3 +85,6 @@ DELETE
 
 URL:http://localhost:8000/vehiclemodels/5/
 ===============================
+
+REDIS MONITOR
+![redis-monitor](https://user-images.githubusercontent.com/32904056/128599176-c94a795c-3d84-4d6c-b69e-68b10bd918ec.png)
