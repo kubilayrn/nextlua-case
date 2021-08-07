@@ -89,7 +89,7 @@ class VehicleViewSet(viewsets.GenericViewSet):
                 return self.get_paginated_response(serializer.data)
 
             serializer = self.get_serializer(queryset, many=True)
-        return Response(serializer.data)
+        return Response(sorted(serializer.data, key=lambda x: x["id"], reverse=False))
 
     def retrieve(self, request, *args, **kwargs):
         # key ile cache kontrol ediliyor.cache'de var ise cacheden yanıt dönülüyor.
@@ -227,7 +227,7 @@ class VehicleModelViewSet(viewsets.GenericViewSet):
                 return self.get_paginated_response(serializer.data)
 
             serializer = self.get_serializer(queryset, many=True)
-        return Response(serializer.data)
+        return Response(sorted(serializer.data, key=lambda x: x["id"], reverse=False))
 
     def retrieve(self, request, *args, **kwargs):
         key="vehiclemodel_"+ kwargs['pk']
